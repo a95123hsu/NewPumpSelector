@@ -106,7 +106,7 @@ def validate_pump_data(df: pd.DataFrame) -> Tuple[bool, Optional[str]]:
     Returns:
         Tuple[bool, Optional[str]]: (is_valid, error_message)
     """
-    required_columns = ["Model", "Q Rated/LPM", "Head Rated/M"]
+    required_columns = ["Model No.", "Q Rated/LPM", "Head Rated/M"]
     
     # Check for required columns
     missing_columns = [col for col in required_columns if col not in df.columns]
