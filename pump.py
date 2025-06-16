@@ -553,41 +553,18 @@ if st.button(get_text("Search")):
                     format="%.1f m"
                 )
             
-            # Add checkbox column for selection
+            # Define model column name
             model_column = "Model" if "Model" in displayed_results.columns else "Model No."
             
-            # Create a copy with checkbox column
-            display_df = displayed_results.copy()
-            
-            # Add selection column at the beginning
-            display_df.insert(0, "Select", False)
-            
-            # Configure checkbox column
-            column_config["Select"] = st.column_config.CheckboxColumn(
-                "Select",
-                help="Select pumps to view performance curves",
-                default=False,
-            )
-            
-            # Display the dataframe with checkboxes
-            edited_df = st.data_editor(
-                display_df,
+            # Display the dataframe without selection column
+            st.dataframe(
+                displayed_results,
                 column_config=column_config,
                 hide_index=True,
-                use_container_width=True,
-                num_rows="fixed",
-                disabled=[col for col in columns_to_show if col != "Select"],  # Only enable Select column
-                key="pump_selection_table"
+                use_container_width=True
             )
             
-            # Get selected pumps
-            if "Select" in edited_df.columns:
-                selected_rows = edited_df[edited_df["Select"] == True]
-                if not selected_rows.empty and model_column in selected_rows.columns:
-                    selected_models = selected_rows[model_column].tolist()
-                    st.session_state.selected_curve_models = selected_models
-            
-            # Alternative approach with multiselect below table
+            # Add selection controls below the table
             st.markdown("---")
             
             # Check which models have curve data available
@@ -606,9 +583,10 @@ if st.button(get_text("Search")):
                         key="pump_curve_multiselect"
                     )
                     
-                    # Update session state without rerun
-                    if selected_models_multi != st.session_state.selected_curve_models:
+                    # Add Show Curve button
+                    if st.button(get_text("Show Curve"), type="primary"):
                         st.session_state.selected_curve_models = selected_models_multi
+                        st.rerun()
                 else:
                     st.info("ℹ️ No curve data available for the pumps in your search results.")
     else:
