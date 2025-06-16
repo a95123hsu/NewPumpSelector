@@ -27,6 +27,10 @@ st.set_page_config(**PAGE_CONFIG)
 if 'language' not in st.session_state:
     st.session_state.language = "English"
 
+# Initialize pump curve selection state - FIXED
+if 'selected_curve_models' not in st.session_state:
+    st.session_state.selected_curve_models = []
+
 # --- Header ---
 col_logo, col_title, col_lang = st.columns([1, 5, 3])
 with col_logo:
@@ -565,6 +569,11 @@ if st.button(get_text("Search")):
                 default=False,
             )
             
+            # Add a callback function for selection changes
+            def on_selection_change():
+                # This function will be called when selection changes
+                pass
+            
             # Display the dataframe with checkboxes
             edited_df = st.data_editor(
                 display_df,
@@ -573,7 +582,8 @@ if st.button(get_text("Search")):
                 use_container_width=True,
                 num_rows="fixed",
                 disabled=[col for col in columns_to_show if col != "Select"],  # Only enable Select column
-                key="pump_selection_table"
+                key="pump_selection_table",
+                on_change=on_selection_change
             )
             
             # Get selected pumps
@@ -581,7 +591,10 @@ if st.button(get_text("Search")):
                 selected_rows = edited_df[edited_df["Select"] == True]
                 if not selected_rows.empty and model_column in selected_rows.columns:
                     selected_models = selected_rows[model_column].tolist()
-                    st.session_state.selected_curve_models = selected_models
+                    # Only update if selection actually changed
+                    if selected_models != st.session_state.selected_curve_models:
+                        st.session_state.selected_curve_models = selected_models
+                        st.rerun()
             
             # Alternative approach with multiselect below table
             st.markdown("---")
@@ -599,12 +612,14 @@ if st.button(get_text("Search")):
                         models_with_curves,
                         default=st.session_state.get('selected_curve_models', []),
                         help="You can select multiple pumps to compare their curves",
-                        key="pump_curve_multiselect"
+                        key="pump_curve_multiselect",
+                        on_change=on_selection_change
                     )
                     
-                    # Update session state if multiselect is used
-                    if selected_models_multi:
+                    # Only update if selection actually changed
+                    if selected_models_multi != st.session_state.selected_curve_models:
                         st.session_state.selected_curve_models = selected_models_multi
+                        st.rerun()
                 else:
                     st.info("ℹ️ No curve data available for the pumps in your search results.")
     else:
