@@ -564,202 +564,155 @@ if st.button(get_text("Search")):
                 use_container_width=True
             )
             
-            # Add selection controls below the table
-            st.markdown("---")
-            
-            # Check which models have curve data available
-            if model_column in displayed_results.columns:
-                available_models = displayed_results[model_column].dropna().unique().tolist()
-                curve_models = curve_data["Model No."].dropna().unique()
-                models_with_curves = [model for model in available_models if model in curve_models]
+            # --- PUMP CURVE VISUALIZATION SECTION ---
+            # Only show curve section if we have search results and curve data
+            if not curve_data.empty:
+                st.markdown("---")
+                st.markdown("### 📈 Pump Performance Analysis")
                 
-                if models_with_curves:
-                    # Create multiselect for pump selection
-                    selected_models_multi = st.multiselect(
-                        get_text("Select Pumps"),
-                        models_with_curves,
-                        default=st.session_state.get('selected_curve_models', []),
-                        help="Select pumps to compare their performance curves",
-                        key="pump_curve_multiselect"
-                    )
-                    
-                    # Add Show Curve button
-                    if st.button(get_text("Show Curves"), type="primary", use_container_width=True):
-                        st.session_state.selected_curve_models = selected_models_multi
-                        st.rerun()
-                    
-                    # Show selected pumps info
-                    if st.session_state.selected_curve_models:
-                        st.success(f"Selected {len(st.session_state.selected_curve_models)} pump(s)")
+                # Create two columns for the interface
+                col_select, col_display = st.columns([1, 2])
+                
+                with col_select:
+                    # Check which models have curve data available
+                    if model_column in displayed_results.columns:
+                        available_models = displayed_results[model_column].dropna().unique().tolist()
+                        curve_models = curve_data["Model No."].dropna().unique()
+                        models_with_curves = [model for model in available_models if model in curve_models]
                         
-                        # Display selected pump details
-                        st.markdown("#### Selected Pump Details")
+                        if models_with_curves:
+                            # Create multiselect for pump selection
+                            selected_models_multi = st.multiselect(
+                                get_text("Select Pumps"),
+                                models_with_curves,
+                                default=st.session_state.get('selected_curve_models', []),
+                                help="Select pumps to compare their performance curves",
+                                key="pump_curve_multiselect"
+                            )
+                            
+                            # Add Show Curve button
+                            if st.button(get_text("Show Curves"), type="primary", use_container_width=True):
+                                st.session_state.selected_curve_models = selected_models_multi
+                                st.rerun()
+                            
+                            # Show selected pumps info
+                            if st.session_state.selected_curve_models:
+                                st.success(f"Selected {len(st.session_state.selected_curve_models)} pump(s)")
+                                
+                                # Display selected pump details
+                                st.markdown("#### Selected Pump Details")
+                                for model in st.session_state.selected_curve_models:
+                                    pump_data = displayed_results[displayed_results[model_column] == model]
+                                    if not pump_data.empty:
+                                        st.markdown(f"**{model}**")
+                                        # Show key specifications
+                                        if "Q Rated/LPM" in pump_data.columns:
+                                            st.write(f"Rated Flow: {pump_data['Q Rated/LPM'].iloc[0]:.1f} LPM")
+                                        if "Head Rated/M" in pump_data.columns:
+                                            st.write(f"Rated Head: {pump_data['Head Rated/M'].iloc[0]:.1f} m")
+                                        if "Power(KW)" in pump_data.columns:
+                                            st.write(f"Power: {pump_data['Power(KW)'].iloc[0]:.2f} kW")
+                                        st.markdown("---")
+                        else:
+                            st.info("ℹ️ No curve data available for the pumps in your search results.")
+                
+                with col_display:
+                    # Check if we have selected models
+                    if 'selected_curve_models' in st.session_state and st.session_state.selected_curve_models:
+                        # Get user flow and head values
+                        user_flow = st.session_state.get('user_flow', 0)
+                        user_head = st.session_state.get('user_head', 0)
+                        
+                        # Check which selected models have curve data
+                        available_curve_models = []
                         for model in st.session_state.selected_curve_models:
-                            pump_data = displayed_results[displayed_results[model_column] == model]
-                            if not pump_data.empty:
-                                st.markdown(f"**{model}**")
-                                # Show key specifications
-                                if "Q Rated/LPM" in pump_data.columns:
-                                    st.write(f"Rated Flow: {pump_data['Q Rated/LPM'].iloc[0]:.1f} LPM")
-                                if "Head Rated/M" in pump_data.columns:
-                                    st.write(f"Rated Head: {pump_data['Head Rated/M'].iloc[0]:.1f} m")
-                                if "Power(KW)" in pump_data.columns:
-                                    st.write(f"Power: {pump_data['Power(KW)'].iloc[0]:.2f} kW")
-                                st.markdown("---")
-                else:
-                    st.info("ℹ️ No curve data available for the pumps in your search results.")
+                            if model in curve_data["Model No."].values:
+                                available_curve_models.append(model)
+                        
+                        if available_curve_models:
+                            if len(available_curve_models) == 1:
+                                # Show single pump curve
+                                st.subheader(get_text("Performance Curve", model=available_curve_models[0]))
+                                with st.spinner(get_text("Loading Curve")):
+                                    try:
+                                        fig = create_pump_curve_chart(curve_data, available_curve_models[0], user_flow, user_head)
+                                        if fig:
+                                            st.plotly_chart(fig, use_container_width=True)
+                                            
+                                            # Add operating point analysis
+                                            if user_flow > 0 and user_head > 0:
+                                                st.markdown("#### Operating Point Analysis")
+                                                st.write(f"Your operating point: {user_flow:.1f} LPM at {user_head:.1f} m")
+                                                
+                                                # Get pump data for analysis
+                                                pump_data = displayed_results[displayed_results[model_column] == available_curve_models[0]]
+                                                if not pump_data.empty:
+                                                    if "Q Rated/LPM" in pump_data.columns and "Head Rated/M" in pump_data.columns:
+                                                        rated_flow = pump_data["Q Rated/LPM"].iloc[0]
+                                                        rated_head = pump_data["Head Rated/M"].iloc[0]
+                                                        
+                                                        # Calculate percentage of rated conditions
+                                                        flow_percent = (user_flow / rated_flow * 100) if rated_flow > 0 else 0
+                                                        head_percent = (user_head / rated_head * 100) if rated_head > 0 else 0
+                                                        
+                                                        st.write(f"Operating at {flow_percent:.1f}% of rated flow")
+                                                        st.write(f"Operating at {head_percent:.1f}% of rated head")
+                                    except Exception as e:
+                                        logger.error(f"Error creating pump curve: {str(e)}")
+                                        st.error(f"Error creating pump curve: {str(e)}")
+                                    
+                            elif len(available_curve_models) > 1:
+                                # Show comparison chart
+                                st.subheader(get_text("Multiple Curves"))
+                                st.caption(f"Comparing: {', '.join(available_curve_models)}")
+                                with st.spinner(get_text("Loading Comparison")):
+                                    try:
+                                        fig_comp = create_comparison_chart(curve_data, available_curve_models, user_flow, user_head)
+                                        if fig_comp:
+                                            st.plotly_chart(fig_comp, use_container_width=True)
+                                            
+                                            # Add comparison analysis
+                                            if user_flow > 0 and user_head > 0:
+                                                st.markdown("#### Comparison Analysis")
+                                                st.write(f"Your operating point: {user_flow:.1f} LPM at {user_head:.1f} m")
+                                                
+                                                # Compare operating points for each pump
+                                                for model in available_curve_models:
+                                                    pump_data = displayed_results[displayed_results[model_column] == model]
+                                                    if not pump_data.empty:
+                                                        st.markdown(f"**{model}**")
+                                                        if "Q Rated/LPM" in pump_data.columns and "Head Rated/M" in pump_data.columns:
+                                                            rated_flow = pump_data["Q Rated/LPM"].iloc[0]
+                                                            rated_head = pump_data["Head Rated/M"].iloc[0]
+                                                            
+                                                            flow_percent = (user_flow / rated_flow * 100) if rated_flow > 0 else 0
+                                                            head_percent = (user_head / rated_head * 100) if rated_head > 0 else 0
+                                                            
+                                                            st.write(f"Operating at {flow_percent:.1f}% of rated flow")
+                                                            st.write(f"Operating at {head_percent:.1f}% of rated head")
+                                                        st.markdown("---")
+                                    except Exception as e:
+                                        logger.error(f"Error creating comparison chart: {str(e)}")
+                                        st.error(f"Error creating comparison chart: {str(e)}")
+                                
+                                # Show individual curves in expandable sections
+                                if len(available_curve_models) > 1:
+                                    with st.expander("View Individual Pump Curves", expanded=False):
+                                        for model in available_curve_models:
+                                            st.subheader(get_text("Performance Curve", model=model))
+                                            try:
+                                                fig = create_pump_curve_chart(curve_data, model, user_flow, user_head)
+                                                if fig:
+                                                    st.plotly_chart(fig, use_container_width=True)
+                                                else:
+                                                    st.warning(get_text("No Curve Data"))
+                                            except Exception as e:
+                                                logger.error(f"Error creating curve for {model}: {str(e)}")
+                                                st.error(f"Error creating curve for {model}: {str(e)}")
+                        else:
+                            st.warning("The selected pumps do not have curve data available.")
+                    else:
+                        # Show message to select pumps
+                        st.info("👆 Please select one or more pumps from the left panel and click 'Show Curves' to view their performance curves")
     else:
         st.warning(get_text("No Matches"))
-
-# --- PUMP CURVE VISUALIZATION SECTION ---
-# Only show curve section if we have search results and curve data
-if not curve_data.empty and 'filtered_pumps' in st.session_state and not st.session_state.filtered_pumps.empty:
-    st.markdown("---")
-    st.markdown("### 📈 Pump Performance Analysis")
-    
-    # Create two columns for the interface
-    col_select, col_display = st.columns([1, 2])
-    
-    with col_select:
-        # Check which models have curve data available
-        if model_column in displayed_results.columns:
-            available_models = displayed_results[model_column].dropna().unique().tolist()
-            curve_models = curve_data["Model No."].dropna().unique()
-            models_with_curves = [model for model in available_models if model in curve_models]
-            
-            if models_with_curves:
-                # Create multiselect for pump selection
-                selected_models_multi = st.multiselect(
-                    get_text("Select Pumps"),
-                    models_with_curves,
-                    default=st.session_state.get('selected_curve_models', []),
-                    help="Select pumps to compare their performance curves",
-                    key="pump_curve_multiselect"
-                )
-                
-                # Add Show Curve button
-                if st.button(get_text("Show Curves"), type="primary", use_container_width=True):
-                    st.session_state.selected_curve_models = selected_models_multi
-                    st.rerun()
-                
-                # Show selected pumps info
-                if st.session_state.selected_curve_models:
-                    st.success(f"Selected {len(st.session_state.selected_curve_models)} pump(s)")
-                    
-                    # Display selected pump details
-                    st.markdown("#### Selected Pump Details")
-                    for model in st.session_state.selected_curve_models:
-                        pump_data = displayed_results[displayed_results[model_column] == model]
-                        if not pump_data.empty:
-                            st.markdown(f"**{model}**")
-                            # Show key specifications
-                            if "Q Rated/LPM" in pump_data.columns:
-                                st.write(f"Rated Flow: {pump_data['Q Rated/LPM'].iloc[0]:.1f} LPM")
-                            if "Head Rated/M" in pump_data.columns:
-                                st.write(f"Rated Head: {pump_data['Head Rated/M'].iloc[0]:.1f} m")
-                            if "Power(KW)" in pump_data.columns:
-                                st.write(f"Power: {pump_data['Power(KW)'].iloc[0]:.2f} kW")
-                            st.markdown("---")
-            else:
-                st.info("ℹ️ No curve data available for the pumps in your search results.")
-    
-    with col_display:
-        # Check if we have selected models
-        if 'selected_curve_models' in st.session_state and st.session_state.selected_curve_models:
-            # Get user flow and head values
-            user_flow = st.session_state.get('user_flow', 0)
-            user_head = st.session_state.get('user_head', 0)
-            
-            # Check which selected models have curve data
-            available_curve_models = []
-            for model in st.session_state.selected_curve_models:
-                if model in curve_data["Model No."].values:
-                    available_curve_models.append(model)
-            
-            if available_curve_models:
-                if len(available_curve_models) == 1:
-                    # Show single pump curve
-                    st.subheader(get_text("Performance Curve", model=available_curve_models[0]))
-                    with st.spinner(get_text("Loading Curve")):
-                        try:
-                            fig = create_pump_curve_chart(curve_data, available_curve_models[0], user_flow, user_head)
-                            if fig:
-                                st.plotly_chart(fig, use_container_width=True)
-                                
-                                # Add operating point analysis
-                                if user_flow > 0 and user_head > 0:
-                                    st.markdown("#### Operating Point Analysis")
-                                    st.write(f"Your operating point: {user_flow:.1f} LPM at {user_head:.1f} m")
-                                    
-                                    # Get pump data for analysis
-                                    pump_data = displayed_results[displayed_results[model_column] == available_curve_models[0]]
-                                    if not pump_data.empty:
-                                        if "Q Rated/LPM" in pump_data.columns and "Head Rated/M" in pump_data.columns:
-                                            rated_flow = pump_data["Q Rated/LPM"].iloc[0]
-                                            rated_head = pump_data["Head Rated/M"].iloc[0]
-                                            
-                                            # Calculate percentage of rated conditions
-                                            flow_percent = (user_flow / rated_flow * 100) if rated_flow > 0 else 0
-                                            head_percent = (user_head / rated_head * 100) if rated_head > 0 else 0
-                                            
-                                            st.write(f"Operating at {flow_percent:.1f}% of rated flow")
-                                            st.write(f"Operating at {head_percent:.1f}% of rated head")
-                            else:
-                                st.warning(get_text("No Curve Data"))
-                        except Exception as e:
-                            logger.error(f"Error creating pump curve: {str(e)}")
-                            st.error(f"Error creating pump curve: {str(e)}")
-                            
-                elif len(available_curve_models) > 1:
-                    # Show comparison chart
-                    st.subheader(get_text("Multiple Curves"))
-                    st.caption(f"Comparing: {', '.join(available_curve_models)}")
-                    with st.spinner(get_text("Loading Comparison")):
-                        try:
-                            fig_comp = create_comparison_chart(curve_data, available_curve_models, user_flow, user_head)
-                            if fig_comp:
-                                st.plotly_chart(fig_comp, use_container_width=True)
-                                
-                                # Add comparison analysis
-                                if user_flow > 0 and user_head > 0:
-                                    st.markdown("#### Comparison Analysis")
-                                    st.write(f"Your operating point: {user_flow:.1f} LPM at {user_head:.1f} m")
-                                    
-                                    # Compare operating points for each pump
-                                    for model in available_curve_models:
-                                        pump_data = displayed_results[displayed_results[model_column] == model]
-                                        if not pump_data.empty:
-                                            st.markdown(f"**{model}**")
-                                            if "Q Rated/LPM" in pump_data.columns and "Head Rated/M" in pump_data.columns:
-                                                rated_flow = pump_data["Q Rated/LPM"].iloc[0]
-                                                rated_head = pump_data["Head Rated/M"].iloc[0]
-                                                
-                                                flow_percent = (user_flow / rated_flow * 100) if rated_flow > 0 else 0
-                                                head_percent = (user_head / rated_head * 100) if rated_head > 0 else 0
-                                                
-                                                st.write(f"Operating at {flow_percent:.1f}% of rated flow")
-                                                st.write(f"Operating at {head_percent:.1f}% of rated head")
-                                            st.markdown("---")
-                        except Exception as e:
-                            logger.error(f"Error creating comparison chart: {str(e)}")
-                            st.error(f"Error creating comparison chart: {str(e)}")
-                
-                # Show individual curves in expandable sections
-                if len(available_curve_models) > 1:
-                    with st.expander("View Individual Pump Curves", expanded=False):
-                        for model in available_curve_models:
-                            st.subheader(get_text("Performance Curve", model=model))
-                            try:
-                                fig = create_pump_curve_chart(curve_data, model, user_flow, user_head)
-                                if fig:
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.warning(get_text("No Curve Data"))
-                            except Exception as e:
-                                logger.error(f"Error creating curve for {model}: {str(e)}")
-                                st.error(f"Error creating curve for {model}: {str(e)}")
-            else:
-                st.warning("The selected pumps do not have curve data available.")
-        else:
-            # Show message to select pumps
-            st.info("👆 Please select one or more pumps from the left panel and click 'Show Curves' to view their performance curves")
