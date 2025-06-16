@@ -581,35 +581,37 @@ if st.button(get_text("Search")):
                         models_with_curves = [model for model in available_models if model in curve_models]
                         
                         if models_with_curves:
-                            # Initialize temporary selection state if not exists
-                            if 'temp_selected_models' not in st.session_state:
-                                st.session_state.temp_selected_models = st.session_state.get('selected_curve_models', [])
+                            # Initialize selection state if not exists
+                            if 'previous_selection' not in st.session_state:
+                                st.session_state.previous_selection = []
+                                st.session_state.selected_curve_models = []
                             
                             # Create multiselect for pump selection
                             selected_models_multi = st.multiselect(
                                 get_text("Select Pumps"),
                                 models_with_curves,
-                                default=st.session_state.temp_selected_models,
+                                default=st.session_state.selected_curve_models,
                                 help="Select pumps to compare their performance curves",
-                                key="pump_curve_multiselect"
+                                key="pump_selection"
                             )
                             
-                            # Update temporary selection state
-                            st.session_state.temp_selected_models = selected_models_multi
+                            # Track selection changes
+                            if selected_models_multi != st.session_state.previous_selection:
+                                st.session_state.previous_selection = selected_models_multi.copy()
                             
                             # Add Show Curve button
                             if st.button(get_text("Show Curves"), type="primary", use_container_width=True):
                                 # Update the actual selection state only when button is clicked
-                                st.session_state.selected_curve_models = st.session_state.temp_selected_models
+                                st.session_state.selected_curve_models = st.session_state.previous_selection
                                 st.rerun()
                             
                             # Show selected pumps info
-                            if st.session_state.temp_selected_models:
-                                st.success(f"Selected {len(st.session_state.temp_selected_models)} pump(s)")
+                            if st.session_state.previous_selection:
+                                st.success(f"Selected {len(st.session_state.previous_selection)} pump(s)")
                                 
                                 # Display selected pump details
                                 st.markdown("#### Selected Pump Details")
-                                for model in st.session_state.temp_selected_models:
+                                for model in st.session_state.previous_selection:
                                     pump_data = displayed_results[displayed_results[model_column] == model]
                                     if not pump_data.empty:
                                         st.markdown(f"**{model}**")
