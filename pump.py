@@ -497,6 +497,9 @@ if st.button(get_text("Search")):
             # Create a copy of the dataframe for display
             display_df = displayed_results.copy()
             
+            # Define model column name
+            model_column = "Model" if "Model" in displayed_results.columns else "Model No."
+            
             # Add selection column at the beginning
             display_df.insert(0, "Select", False)
             
