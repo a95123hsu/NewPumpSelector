@@ -580,7 +580,7 @@ if st.button(get_text("Search")):
                 key="pump_selection_table"
             )
             
-            # Get selected pumps
+            # Get selected pumps from the table
             if "Select" in edited_df.columns:
                 selected_rows = edited_df[edited_df["Select"] == True]
                 if not selected_rows.empty and model_column in selected_rows.columns:
@@ -608,7 +608,13 @@ if st.button(get_text("Search")):
                     )
                     
                     # Update session state without rerun
-                    st.session_state.selected_curve_models = selected_models_multi
+                    if selected_models_multi != st.session_state.selected_curve_models:
+                        st.session_state.selected_curve_models = selected_models_multi
+                        # Update the checkbox table to match the multiselect
+                        if "pump_selection_table" in st.session_state:
+                            edited_df = st.session_state.pump_selection_table
+                            edited_df["Select"] = edited_df[model_column].isin(selected_models_multi)
+                            st.session_state.pump_selection_table = edited_df
                 else:
                     st.info("ℹ️ No curve data available for the pumps in your search results.")
     else:
