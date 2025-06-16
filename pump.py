@@ -494,99 +494,36 @@ if st.button(get_text("Search")):
                 st.caption(f"📋 Displaying {len(displayed_results.columns)} columns: {', '.join(displayed_results.columns[:5])}{'...' if len(displayed_results.columns) > 5 else ''}")
                 st.info(get_text("Select Pumps"))
             
-            # Create column configuration for product links and proper formatting
-            column_config = {}
-            
-            # Configure the ID column for default sorting if it exists (excluding DB ID)
-            if "id" in displayed_results.columns:
-                column_config["id"] = st.column_config.NumberColumn(
-                    "ID",
-                    help="ID",
-                    format="%d"
-                )
-            elif "ID" in displayed_results.columns:
-                column_config["ID"] = st.column_config.NumberColumn(
-                    "ID",
-                    help="ID",
-                    format="%d"
-                )
-            
-            # Configure the Product Link column if it exists
-            if "Product Link" in displayed_results.columns:
-                column_config["Product Link"] = st.column_config.LinkColumn(
-                    "Product Link",
-                    help="Click to view product details",
-                    display_text=get_text("View Product")
-                )
-            
-            # Better formatting for Q Rated/LPM and Head Rated/M columns
-            if "Q Rated/LPM" in displayed_results.columns:
-                flow_label = get_text("Q Rated/LPM")
-                flow_help = get_text("Rated flow rate in liters per minute")
-                column_config["Q Rated/LPM"] = st.column_config.NumberColumn(
-                    flow_label,
-                    help=flow_help,
-                    format="%.1f LPM"
-                )
-            
-            if "Head Rated/M" in displayed_results.columns:
-                head_label = get_text("Head Rated/M")
-                head_help = get_text("Rated head in meters")
-                column_config["Head Rated/M"] = st.column_config.NumberColumn(
-                    head_label,
-                    help=head_help,
-                    format="%.1f m"
-                )
-            
-            # Configure other numeric columns with proper formatting
-            if "Max Flow (LPM)" in displayed_results.columns:
-                column_config["Max Flow (LPM)"] = st.column_config.NumberColumn(
-                    "Max Flow (LPM)",
-                    help="Maximum flow rate in liters per minute",
-                    format="%.1f LPM"
-                )
-            
-            if "Max Head (M)" in displayed_results.columns:
-                column_config["Max Head (M)"] = st.column_config.NumberColumn(
-                    "Max Head (M)",
-                    help="Maximum head in meters",
-                    format="%.1f m"
-                )
-            
-            # Add checkbox column for selection
-            model_column = "Model" if "Model" in displayed_results.columns else "Model No."
-            
-            # Create a copy with checkbox column
+            # Create a copy of the dataframe for display
             display_df = displayed_results.copy()
             
             # Add selection column at the beginning
             display_df.insert(0, "Select", False)
             
-            # Configure checkbox column
-            column_config["Select"] = st.column_config.CheckboxColumn(
-                "Select",
-                help="Select pumps to view performance curves",
-                default=False,
-            )
+            # Create columns for the table
+            cols = st.columns([1] + [3] * (len(columns_to_show) - 1))
             
-            # Display the dataframe with checkboxes
-            edited_df = st.data_editor(
-                display_df,
-                column_config=column_config,
-                hide_index=True,
-                use_container_width=True,
-                num_rows="fixed",
-                disabled=[col for col in columns_to_show if col != "Select"],  # Only enable Select column
-                key="pump_selection_table"
-            )
+            # Add headers
+            with cols[0]:
+                st.write("Select")
+            for i, col in enumerate(columns_to_show[1:], 1):
+                with cols[i]:
+                    st.write(col)
             
-            # Get selected pumps from the table
-            if "Select" in edited_df.columns:
-                selected_rows = edited_df[edited_df["Select"] == True]
-                if not selected_rows.empty and model_column in selected_rows.columns:
-                    selected_models = selected_rows[model_column].tolist()
-                    # Update session state without rerun
-                    st.session_state.selected_curve_models = selected_models
+            # Add rows with checkboxes
+            for idx, row in display_df.iterrows():
+                cols = st.columns([1] + [3] * (len(columns_to_show) - 1))
+                with cols[0]:
+                    if st.checkbox("", key=f"select_{idx}", value=row[model_column] in st.session_state.selected_curve_models):
+                        if row[model_column] not in st.session_state.selected_curve_models:
+                            st.session_state.selected_curve_models.append(row[model_column])
+                    else:
+                        if row[model_column] in st.session_state.selected_curve_models:
+                            st.session_state.selected_curve_models.remove(row[model_column])
+                
+                for i, col in enumerate(columns_to_show[1:], 1):
+                    with cols[i]:
+                        st.write(row[col])
             
             # Alternative approach with multiselect below table
             st.markdown("---")
@@ -610,11 +547,6 @@ if st.button(get_text("Search")):
                     # Update session state without rerun
                     if selected_models_multi != st.session_state.selected_curve_models:
                         st.session_state.selected_curve_models = selected_models_multi
-                        # Update the checkbox table to match the multiselect
-                        if "pump_selection_table" in st.session_state:
-                            edited_df = st.session_state.pump_selection_table
-                            edited_df["Select"] = edited_df[model_column].isin(selected_models_multi)
-                            st.session_state.pump_selection_table = edited_df
                 else:
                     st.info("ℹ️ No curve data available for the pumps in your search results.")
     else:
